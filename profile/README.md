@@ -1,91 +1,141 @@
-# My Easy  2026
+# My Easy Shop 2026
 
 ![image](intro.jpg)
 
-Josh's side project: a lightweight Vault backend built with Go.
-My easy vault is a transparent vault that makes currency exchange and transfers funds to others easy.
-It focuses on core money-flow capabilities, including wallet management, currency exchange, peer transfers, and transaction history.
+Josh's side project, a simple online store backend service developed in Java.
+The main goal is to provide e-commerce functions such as browsing, ordering, payment, and shipping.
+
+## Project Architecture
+
+1. Document-first development based on OpenAPI code generator
+2. Microservices architecture, with service discovery supported by Nacos and distributed transactions by Seata
+3. SQL migration assisted by Liquibase
 
 ## Project Positioning
 
-This project aims to be a "simple but engineering-focused" backend for fund operations, with emphasis on:
-- Clear three-layer architecture: `handler -> service -> dao`
-- Maintainable data-access design
-- Production-friendly access control and rate limiting
+This project focuses on a document-first microservices system backend, emphasizing:
+- OpenAPI-driven document-first development: Domain and controller are auto-generated from documents, reducing repetitive work in microservice integration
+- Seata-driven distributed transactions: Non-intrusive distributed transactions, reducing manual handling of distributed transactions
 
 ## Core Features
 
-- User login/register and logout (token-based)
-- Wallet creation and listing
-- Exchange rate query
-- Currency exchange (Preview / Confirm)
-- Peer-to-peer transfer (Preview / Confirm)
-- Paginated transaction history
-- Test route for fund top-up simulation (`/test/account/addAssets`)
-
-## Key Highlights
-
-### 1) Middleware: Access Control + Rate Limiting
-
-Applied consistently at the routing layer:
-- `ApiAuthorityMiddleWare`: validates API permissions, parses token, and injects auth context
-- `RateLimitMiddleWare`: applies leaky-bucket based throttling by permission rules, and returns `X-RateLimit-*` headers
-
-This keeps security and traffic control centralized at the entry point, so business code stays clean.
-
-### 2) DAO: Improved ORM Design
-
-The DAO layer uses unified query objects with composable Scope chains. Key patterns include:
-- `Query` structs + `queryChain` to assemble where/in/order/page conditions consistently
-- `WithTx` for transaction-aware DAO switching with lower coupling
-- Dynamic `Update` field mapping to reduce repetitive SQL boilerplate
-
-This improves maintainability, readability, and long-term extensibility in the data layer.
-
-### 3) L2 Cache: Non-Intrusive Cached Query
-
-`infra/L2CQuery` provides a generic cache wrapper for queries:
-- Auto-generates cache keys from SQL
-- Reads from Redis first, falls back to DB on cache miss
-- Writes cache back and maintains table/key relationship sets
-
-Service code only needs to wrap query functions once, without scattering cache logic across business modules.
+- Product listing
+- User login/logout
+- Purchase products
+- Redirect to third-party payment system
+- Product shipping (in development)
+- Purchase history query
 
 ## Tech Stack
 
-- Language: Go (`go1.23`)
-- API: Gin
-- DI: Uber Fx
-- DB: MySQL + GORM (with read/write splitting plugin)
-- Cache / MQ: Redis (cache, lock, queue/pubsub)
-- Tooling: Cobra, Viper, Swagger
+- Language: Java (java 17)
+- API: Spring Boot 3.1.5
+- DB: MySQL + MyBatis Plus 3.5.3.2
+- Cache: Redis
+- Document: OpenAPI 3.0.3
+- Service Discovery: Nacos 2.2.3
+- Distributed Transaction: Seata 2.0.0
+- Timed Task Management: XXL 2.4.0
 
-## Project Structure (Excerpt)
+## Project Structure
+
+![image](structure.jpg)
+
+- Gateway Layer: Provides interfaces for external integration, handles permission verification, frontend data format, future plans include permission management, rate limiting, etc.
+- Base Module: Handles business logic
+- Platform Service: Provides platform internal management and support functions
+- Infrastructure: Basic infrastructure
+
+## Module Introduction
+
+- nacos: Service discovery
+- seata: Distributed transactions
+- xxl: Timed task management
+- sql-migration: Database migration based on Liquibase
+- openapi: All API and data document definitions
+
+- common-module: Shared packages and parent POM
+
+- order-bll: Provides order and payment related API interfaces
+- order-base: Order and payment related business logic implementation
+- sku-bll: Provides product list related API interfaces
+- sku-base: Product list related business logic implementation
+- user-bll: Provides user registration and login related API interfaces
+- user-base: User registration and login related business logic implementation
+- management-bll: Provides manage products and update logistics info API interfaces
+- management-base: Manage products and update logistics info business logic implementation
+- logistics-base: Logistics related business logic implementation (in development)
+- notify-base: Notification related business logic implementation
+- agency-base: Provides external platform user purchase functionality (not developed)
+
+## Project Folder Structure
 
 ```text
-api-server/
-  api/            # handlers, routers, middlewares
-  services/       # business logic
-  dao/            # data access and ORM composition
-  infra/          # DB/Redis/MQ/L2 cache/lock/router
-  docs/           # swagger docs
+src/main/java/{package}/
+  common/         # Project aspects and package settings
+  controller/     # Controller implementation (path definitions from OpenAPI code generator)
+  mapper/         # Data access (data definitions from OpenAPI code generator)
+  service/        # Business logic implementation
+
+target/generated-sources/openapi/src/main/java/{package}
+  api/            # Auto-generated path definitions from OpenAPI code generator
+  model/          # Auto-generated data definitions from OpenAPI code generator
 ```
 
 ## Quick Start (Local)
 
-```bash
-cd api-server
-cp .env.example .env
-go run main.go serve
+1. Set up infrastructure
+   - Set up MySQL 8 on port 3311, account root password 123456
+   - Set up Redis 7 on port 6379, no SSL, password 123456
+
+2. Start platform service
+```sh
+# nacos
+cd nacos
+mvn -Prelease-nacos -Dmaven.test.skip=true clean install -U 
+cd distribution/target/nacos-server-2.2.3/nacos/bin
+sh startup.sh -m standalone
+## After setup, log in to the backend to check if successful http://127.0.0.1:8848/nacos/
+
+# liquibase
+cd sql-migration
+make sku
+make agency
+make user
+make order
+make xxl
+make management
+make logistics
+make seata
+
+# seata
+cd seata
+mvn -Prelease-seata -Dmaven.test.skip=true clean install -U 
+cd distribution/target/seata-server-2.0.0/seata/bin/
+sh seata-server.sh -h 127.0.0.1 -p 8091 -m db
+## After setup, log in to the backend to check if successful http://localhost:7091/ account seata password seata
+
+# xxl
+cd xxl
+mvn clean install
+cd xxl-job-admin
+mvn package
+docker build --no-cache . -t xxl-job-admin:2.4.0
+docker compose up -d
+## After setup, log in to the backend to check if successful http://localhost:8056/xxl-job-admin/ account admin password 123456
+
 ```
 
-Or with Docker:
+3. Build all modules
+```sh
+git clone --recurse-submodules <url> # Clone with submodules
 
-```bash
-cd api-server
-docker compose -f docker/docker-compose.yml up --build
+cd <module>
+mvn clean generate-sources # Generate code
+
+mvn spring-boot:run -Dspring-boot.run.arguments="--spring.config.additional-location=src/main/resources/application-local.yml --spring.profiles.active=local"
 ```
 
 ## Notes
 
-This is an actively evolving side project by Josh, intended to become a practical and extensible backend template for Vault-like systems.
+This is Josh's 2026 side project, with limited time, many features are not completed
