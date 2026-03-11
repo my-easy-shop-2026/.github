@@ -112,7 +112,7 @@ make seata
 cd seata
 mvn -Prelease-seata -Dmaven.test.skip=true clean install -U 
 cd distribution/target/seata-server-2.0.0/seata/bin/
-sh seata-server.sh -h 127.0.0.1 -p 8091 -m db
+PSR_NACOS=127.0.0.1:8848  MYSQL_PATH=127.0.0.1:3311  MYSQL_DATABASE=seata MYSQL_USER=root MYSQL_PASSWORD='123456' sh seata-server.sh -h 127.0.0.1 -p 8091 -m db
 ## After setup, log in to the backend to check if successful http://localhost:7091/ account seata password seata
 
 # xxl
